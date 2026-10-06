@@ -97,15 +97,16 @@ Keep every later update a full rewrite of the same shape (read the current file,
 
 ## Procedure
 
-1. **Acknowledge first, before any further action.**
-   Write the response file with `delivery_status: "delivered"`, `execution_state: "queued"`, `task_id: null`, and a fresh `updated_at`.
-   This is the durable confirmation of receipt, distinct from the MCP tool's own `"queued"`.
-   Do this even before resolving the project or classifying the work.
-
-2. **Idempotency check.**
-   If `state/chatgpt-inbox/<request_id>.response.json` already exists with `execution_state` beyond `queued` (i.e. work was already dispatched or steered for this exact `request_id`), do not dispatch or steer again - this wake is a re-delivery or a recovery replay.
-   Reconcile the existing `task_id`'s current state instead (`bin/fm-crew-state.sh`) and bring the response record up to date from there.
+1. **Idempotency check, before writing anything.**
+   Read `state/chatgpt-inbox/<request_id>.response.json` if it exists.
+   If its `execution_state` is already beyond `queued` (i.e. work was already dispatched or steered for this exact `request_id`), do not dispatch or steer again, and do not overwrite its `task_id` or reset `execution_state` back to `queued` - this wake is a re-delivery or a recovery replay.
+   Reconcile the existing `task_id`'s current state instead (`bin/fm-crew-state.sh`), bring the response record up to date from there (per step 4's milestone rules), and stop; do not continue to steps 2-3.
    Apply the same rule across a matching `idempotency_key` on a different `request_id` if one is ever observed: treat it as the same logical request, not a new one.
+
+2. **Acknowledge, only when this is genuinely new.**
+   Otherwise - no response file yet, or one still at `execution_state: "queued"` with `task_id: null` - write the response file with `delivery_status: "delivered"`, `execution_state: "queued"`, `task_id: null`, and a fresh `updated_at`.
+   This is the durable confirmation of receipt, distinct from the MCP tool's own `"queued"`.
+   Do this before resolving the project or classifying the work.
 
 3. **Route and act, through the unmodified section 7 intake.**
    This step adds nothing to that procedure; it only tells you where to plug in.
